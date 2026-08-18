@@ -1,0 +1,6 @@
+/bencher2gitlab
+coverage.out
+coverage.xml
+junit-report.xml
+/sonarqube/
+/.cache/

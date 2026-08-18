@@ -1,0 +1,32 @@
+{
+  "uuid": "9f5b1d4e-6c3a-4e0d-b1f2-4a7c8d9e0f1a",
+  "project": { "name": "BankingSync", "slug": "bankingsync" },
+  "branch": { "name": "main", "slug": "main" },
+  "testbed": { "name": "gcc", "slug": "gcc" },
+  "adapter": "go_bench",
+  "results": [
+    [
+      {
+        "iteration": 0,
+        "benchmark": { "name": "BenchmarkBare", "slug": "benchmarkbare" },
+        "measures": [
+          {
+            "measure": { "name": "Latency", "slug": "latency", "units": "nanoseconds (ns)" },
+            "metric": { "value": 512.0 }
+          }
+        ]
+      }
+    ]
+  ],
+  "alerts": [
+    {
+      "uuid": "a0000000-0000-0000-0000-000000000009",
+      "iteration": 0,
+      "benchmark": { "name": "BenchmarkBare", "slug": "benchmarkbare" },
+      "metric": { "value": 512.0 },
+      "boundary": { "upper_limit": 400.0 },
+      "limit": "upper",
+      "status": "active"
+    }
+  ]
+}

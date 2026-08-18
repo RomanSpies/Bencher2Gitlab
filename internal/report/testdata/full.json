@@ -1,0 +1,247 @@
+{
+  "uuid": "7d3f9b2c-4a1e-4c8b-9f0d-2e5a6b7c8d9e",
+  "user": null,
+  "project": {
+    "uuid": "10000000-0000-0000-0000-000000000001",
+    "name": "BankingSync",
+    "slug": "bankingsync",
+    "visibility": "private"
+  },
+  "branch": {
+    "uuid": "10000000-0000-0000-0000-000000000002",
+    "name": "feature/ebics-batch",
+    "slug": "feature-ebics-batch",
+    "head": {
+      "uuid": "10000000-0000-0000-0000-000000000003",
+      "version": { "number": 42 }
+    }
+  },
+  "testbed": {
+    "uuid": "10000000-0000-0000-0000-000000000004",
+    "name": "gcc",
+    "slug": "gcc"
+  },
+  "adapter": "go_bench",
+  "start_time": "2026-08-18T10:00:00Z",
+  "end_time": "2026-08-18T10:05:00Z",
+  "created": "2026-08-18T10:05:01Z",
+  "results": [
+    [
+      {
+        "iteration": 0,
+        "benchmark": {
+          "uuid": "20000000-0000-0000-0000-000000000001",
+          "name": "BenchmarkParseEBICS",
+          "slug": "benchmarkparseebics"
+        },
+        "measures": [
+          {
+            "measure": {
+              "uuid": "30000000-0000-0000-0000-000000000001",
+              "name": "Latency",
+              "slug": "latency",
+              "units": "nanoseconds (ns)"
+            },
+            "metric": {
+              "uuid": "40000000-0000-0000-0000-000000000001",
+              "value": 1234.56,
+              "lower_value": 1200.0,
+              "upper_value": 1290.1
+            },
+            "threshold": {
+              "uuid": "50000000-0000-0000-0000-000000000001",
+              "model": {
+                "uuid": "60000000-0000-0000-0000-000000000001",
+                "test": "t_test",
+                "upper_boundary": 0.99,
+                "window": 30
+              }
+            },
+            "boundary": {
+              "baseline": 985.2,
+              "lower_limit": 900.0,
+              "upper_limit": 1080.0
+            }
+          }
+        ]
+      },
+      {
+        "iteration": 0,
+        "benchmark": {
+          "uuid": "20000000-0000-0000-0000-000000000002",
+          "name": "BenchmarkAllocScrub",
+          "slug": "benchmarkallocscrub"
+        },
+        "measures": [
+          {
+            "measure": {
+              "uuid": "30000000-0000-0000-0000-000000000002",
+              "name": "Throughput",
+              "slug": "throughput",
+              "units": "operations / second (ops/s)"
+            },
+            "metric": {
+              "uuid": "40000000-0000-0000-0000-000000000002",
+              "value": 4180.0
+            },
+            "boundary": {
+              "baseline": 5000.0,
+              "lower_limit": 4600.0
+            }
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "iteration": 1,
+        "benchmark": {
+          "uuid": "20000000-0000-0000-0000-000000000002",
+          "name": "BenchmarkAllocScrub",
+          "slug": "benchmarkallocscrub"
+        },
+        "measures": [
+          {
+            "measure": {
+              "uuid": "30000000-0000-0000-0000-000000000002",
+              "name": "Throughput",
+              "slug": "throughput",
+              "units": "operations / second (ops/s)"
+            },
+            "metric": {
+              "uuid": "40000000-0000-0000-0000-000000000003",
+              "value": 4200.0
+            },
+            "boundary": {
+              "baseline": 5000.0,
+              "lower_limit": 4600.0
+            }
+          }
+        ]
+      }
+    ]
+  ],
+  "alerts": [
+    {
+      "uuid": "a0000000-0000-0000-0000-000000000001",
+      "report": "7d3f9b2c-4a1e-4c8b-9f0d-2e5a6b7c8d9e",
+      "iteration": 0,
+      "benchmark": {
+        "uuid": "20000000-0000-0000-0000-000000000001",
+        "name": "BenchmarkParseEBICS",
+        "slug": "benchmarkparseebics"
+      },
+      "metric": {
+        "uuid": "40000000-0000-0000-0000-000000000001",
+        "value": 1234.56,
+        "lower_value": 1200.0,
+        "upper_value": 1290.1
+      },
+      "threshold": {
+        "uuid": "50000000-0000-0000-0000-000000000001",
+        "measure": {
+          "uuid": "30000000-0000-0000-0000-000000000001",
+          "name": "Latency",
+          "slug": "latency",
+          "units": "nanoseconds (ns)"
+        },
+        "model": {
+          "uuid": "60000000-0000-0000-0000-000000000001",
+          "test": "t_test",
+          "upper_boundary": 0.99,
+          "window": 30
+        }
+      },
+      "boundary": {
+        "baseline": 985.2,
+        "lower_limit": 900.0,
+        "upper_limit": 1080.0
+      },
+      "limit": "upper",
+      "status": "active",
+      "created": "2026-08-18T10:05:01Z",
+      "modified": "2026-08-18T10:05:01Z"
+    },
+    {
+      "uuid": "a0000000-0000-0000-0000-000000000002",
+      "report": "7d3f9b2c-4a1e-4c8b-9f0d-2e5a6b7c8d9e",
+      "iteration": 1,
+      "benchmark": {
+        "uuid": "20000000-0000-0000-0000-000000000002",
+        "name": "BenchmarkAllocScrub",
+        "slug": "benchmarkallocscrub"
+      },
+      "metric": {
+        "uuid": "40000000-0000-0000-0000-000000000003",
+        "value": 4200.0
+      },
+      "threshold": {
+        "uuid": "50000000-0000-0000-0000-000000000002",
+        "measure": {
+          "uuid": "30000000-0000-0000-0000-000000000002",
+          "name": "Throughput",
+          "slug": "throughput",
+          "units": "operations / second (ops/s)"
+        },
+        "model": {
+          "uuid": "60000000-0000-0000-0000-000000000002",
+          "test": "t_test",
+          "lower_boundary": 0.99,
+          "window": 30
+        }
+      },
+      "boundary": {
+        "baseline": 5000.0,
+        "lower_limit": 4600.0
+      },
+      "limit": "lower",
+      "status": "active",
+      "created": "2026-08-18T10:05:01Z",
+      "modified": "2026-08-18T10:05:01Z"
+    },
+    {
+      "uuid": "a0000000-0000-0000-0000-000000000003",
+      "report": "7d3f9b2c-4a1e-4c8b-9f0d-2e5a6b7c8d9e",
+      "iteration": 0,
+      "benchmark": {
+        "uuid": "20000000-0000-0000-0000-000000000002",
+        "name": "BenchmarkAllocScrub",
+        "slug": "benchmarkallocscrub"
+      },
+      "metric": {
+        "uuid": "40000000-0000-0000-0000-000000000002",
+        "value": 4180.0
+      },
+      "threshold": {
+        "uuid": "50000000-0000-0000-0000-000000000002",
+        "measure": {
+          "uuid": "30000000-0000-0000-0000-000000000002",
+          "name": "Throughput",
+          "slug": "throughput",
+          "units": "operations / second (ops/s)"
+        },
+        "model": {
+          "uuid": "60000000-0000-0000-0000-000000000002",
+          "test": "t_test",
+          "lower_boundary": 0.99,
+          "window": 30
+        }
+      },
+      "boundary": {
+        "baseline": 5000.0,
+        "lower_limit": 4600.0
+      },
+      "limit": "lower",
+      "status": "silenced",
+      "created": "2026-08-18T10:05:01Z",
+      "modified": "2026-08-18T10:06:12Z"
+    }
+  ],
+  "counts": {
+    "results": [
+      { "benchmarks": 2, "measures": 2 },
+      { "benchmarks": 1, "measures": 1 }
+    ],
+    "alerts": { "total": 3, "active": 2 }
+  }
+}
