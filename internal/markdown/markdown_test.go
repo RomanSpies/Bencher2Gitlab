@@ -142,6 +142,29 @@ func TestRenderTruncation(t *testing.T) {
 	}
 }
 
+func TestRenderDefaultLimitKeepsNotesReadable(t *testing.T) {
+	rep := &report.Report{
+		UUID:    "u",
+		Project: report.NameSlug{Name: "proj", Slug: "proj"},
+		Testbed: report.NameSlug{Name: "tb", Slug: "tb"},
+	}
+	for i := 0; i < 2000; i++ {
+		rep.Alerts = append(rep.Alerts, report.Alert{
+			Status:    "active",
+			Benchmark: report.NameSlug{Name: strings.Repeat("b", 60)},
+			Metric:    report.Metric{Value: float64(i)},
+			Limit:     "upper",
+		})
+	}
+	got := Render(rep, Options{})
+	if len(got) > 64<<10 {
+		t.Errorf("body size %d exceeds the 64 KiB default", len(got))
+	}
+	if !strings.Contains(got, "more alerts — see the [full report]") {
+		t.Errorf("missing truncation trailer pointing to Bencher")
+	}
+}
+
 func TestRenderMultiIteration(t *testing.T) {
 	alert := report.Alert{
 		Status:    "active",

@@ -42,12 +42,19 @@ build:
   stage: build
   <<: *go-cache
   script:
+    # Computed once here and handed to release via dotenv, so the binary and
+    # the release tag always agree even if the pipeline crosses midnight.
+    - VERSION="${MAJOR}.$(date +%-y).$(date +%-V).${CI_PIPELINE_IID}"
+    - echo "VERSION=${VERSION}" > build.env
     - go build ./...
-    - CGO_ENABLED=0 go build -o bencher2gitlab .
+    - CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o bencher2gitlab .
+    - ./bencher2gitlab --version
     - zip bencher2gitlab.zip bencher2gitlab
   artifacts:
     paths:
       - bencher2gitlab.zip
+    reports:
+      dotenv: build.env
     expire_in: 2 weeks
 
 unit-tests:
@@ -183,7 +190,6 @@ release:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
-    - VERSION="${MAJOR}.$(date +%-y).$(date +%-V).${CI_PIPELINE_IID}"
     - echo "Releasing version ${VERSION}"
     - unzip -o bencher2gitlab.zip
     - gh release create "$VERSION" bencher2gitlab
