@@ -11,7 +11,7 @@ import (
 
 const (
 	defaultBencherURL = "https://bencher.dev"
-	defaultMaxBytes   = 900_000
+	defaultMaxBytes   = 64 << 10
 	truncationReserve = 256
 )
 

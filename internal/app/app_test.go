@@ -5,7 +5,6 @@ import (
 	"context"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -51,18 +50,30 @@ func (h *harness) run(t *testing.T) int {
 	return Run(context.Background(), h.cfg, strings.NewReader(""), &h.stdout, &h.stderr)
 }
 
-func clangVariant(t *testing.T) string {
+func fixtureVariant(t *testing.T, old, replacement string, n int) string {
 	t.Helper()
 	data, err := os.ReadFile(fullFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = bytes.ReplaceAll(data, []byte(`"gcc"`), []byte(`"clang"`))
-	path := filepath.Join(t.TempDir(), "full_clang.json")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if !bytes.Contains(data, []byte(old)) {
+		t.Fatalf("fixture does not contain %q", old)
+	}
+	data = bytes.Replace(data, []byte(old), []byte(replacement), n)
+	f, err := os.CreateTemp(t.TempDir(), "variant-*.json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	return path
+	defer f.Close()
+	if _, err := f.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	return f.Name()
+}
+
+func clangVariant(t *testing.T) string {
+	t.Helper()
+	return fixtureVariant(t, `"gcc"`, `"clang"`, -1)
 }
 
 func TestRunCreatesNote(t *testing.T) {
@@ -108,7 +119,7 @@ func TestRunIsIdempotent(t *testing.T) {
 func TestRunFindsMarkerBeyondFirstPage(t *testing.T) {
 	h := newHarness(t, fullFixture)
 	for i := 0; i < 25; i++ {
-		h.fake.Seed("unrelated human comment")
+		h.fake.SeedForeign("unrelated human comment")
 	}
 	h.fake.Seed(gccMarker + "\nold report")
 	h.fake.SeedSystem("changed the description")
@@ -120,6 +131,39 @@ func TestRunFindsMarkerBeyondFirstPage(t *testing.T) {
 	}
 	if !strings.Contains(notes[25].Body, "2 active alerts") {
 		t.Errorf("marker note not updated: %q", notes[25].Body[:60])
+	}
+}
+
+func TestRunIgnoresMarkerInForeignNote(t *testing.T) {
+	h := newHarness(t, fullFixture)
+	quoted := "> " + gccMarker + "\n> quoted by a reviewer"
+	h.fake.SeedForeign(quoted)
+
+	if code := h.run(t); code != ExitAlerts {
+		t.Fatalf("exit = %d, want %d; a foreign note with our marker must not be edited (403), stderr: %s",
+			code, ExitAlerts, h.stderr.String())
+	}
+	notes := h.fake.Notes()
+	if len(notes) != 2 {
+		t.Fatalf("notes = %d, want 2 (foreign note kept, own note created)", len(notes))
+	}
+	if notes[0].Body != quoted {
+		t.Errorf("foreign note was modified: %q", notes[0].Body)
+	}
+	if notes[1].Author.ID != gitlabtest.BotUserID || !strings.Contains(notes[1].Body, "2 active alerts") {
+		t.Errorf("own note wrong: %+v", notes[1])
+	}
+}
+
+func TestRunRetriesTransientListingFailure(t *testing.T) {
+	h := newHarness(t, fullFixture)
+	h.fake.FailNext(gitlabtest.Fault{Status: 429, RetryAfter: "0"})
+
+	if code := h.run(t); code != ExitAlerts {
+		t.Fatalf("exit = %d, want %d after a retried 429, stderr: %s", code, ExitAlerts, h.stderr.String())
+	}
+	if n := len(h.fake.Notes()); n != 1 {
+		t.Errorf("notes = %d, want 1", n)
 	}
 }
 

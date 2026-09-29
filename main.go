@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -12,10 +13,18 @@ import (
 	"github.com/RomanSpies/Bencher2Gitlab/internal/app"
 )
 
+var version = "dev"
+
+var errVersion = errors.New("version requested")
+
 func main() {
 	cfg, err := parseArgs(os.Args[1:])
 	if err != nil {
-		if err == flag.ErrHelp {
+		if errors.Is(err, errVersion) {
+			fmt.Println("bencher2gitlab", version)
+			os.Exit(0)
+		}
+		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)
 		}
 		fmt.Fprintln(os.Stderr, "bencher2gitlab:", err)
@@ -44,6 +53,7 @@ Flags:
 
 	var cfg app.Config
 	var onZero string
+	var showVersion bool
 	fs.StringVar(&cfg.ReportPath, "report", "-", "bencher JsonReport file, \"-\" for stdin")
 	fs.StringVar(&cfg.GitLabURL, "gitlab-url", os.Getenv("CI_API_V4_URL"), "GitLab API v4 base URL (default $CI_API_V4_URL)")
 	fs.StringVar(&cfg.ProjectID, "project", os.Getenv("CI_PROJECT_ID"), "GitLab project ID or path (default $CI_PROJECT_ID)")
@@ -52,9 +62,14 @@ Flags:
 	fs.StringVar(&cfg.BencherURL, "bencher-url", "https://bencher.dev", "Bencher console base URL for the report link")
 	fs.StringVar(&onZero, "on-zero-alerts", "post", "behavior without active alerts: post | auto | skip")
 	fs.BoolVar(&cfg.DryRun, "dry-run", false, "print the markdown to stdout, no API calls")
-	fs.DurationVar(&cfg.Timeout, "timeout", 30*time.Second, "total timeout for GitLab API calls")
+	fs.BoolVar(&cfg.Thread, "thread", false, "post a resolvable thread that resolves itself when alerts clear and reopens on new ones")
+	fs.DurationVar(&cfg.Timeout, "timeout", 30*time.Second, "total timeout for GitLab API calls, retries included")
+	fs.BoolVar(&showVersion, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return app.Config{}, err
+	}
+	if showVersion {
+		return app.Config{}, errVersion
 	}
 	if fs.NArg() > 0 {
 		return app.Config{}, fmt.Errorf("unexpected arguments: %v", fs.Args())

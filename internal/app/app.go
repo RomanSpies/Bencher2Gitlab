@@ -40,6 +40,7 @@ type Config struct {
 	BencherURL   string
 	OnZeroAlerts ZeroAlertMode
 	DryRun       bool
+	Thread       bool
 	Timeout      time.Duration
 	HTTPClient   *http.Client
 }
@@ -60,7 +61,6 @@ func Run(ctx context.Context, cfg Config, in io.Reader, stdout, stderr io.Writer
 	}
 
 	marker := markerFor(rep, cfg.CIID)
-	body := markdown.Render(rep, markdown.Options{Marker: marker, BencherURL: cfg.BencherURL})
 	activeAlerts := len(rep.ActiveAlerts())
 	exit := ExitOK
 	if activeAlerts > 0 {
@@ -68,13 +68,18 @@ func Run(ctx context.Context, cfg Config, in io.Reader, stdout, stderr io.Writer
 	}
 
 	if cfg.DryRun {
-		fmt.Fprintln(stdout, body)
+		var state *threadState
+		if cfg.Thread {
+			s := nextThreadState(nil, alertFingerprints(rep))
+			state = &s
+		}
+		fmt.Fprintln(stdout, render(rep, cfg, marker, state))
 		return exit
 	}
 	if err := validate(cfg); err != nil {
 		return fail(stderr, err)
 	}
-	if err := publish(ctx, cfg, marker, body, activeAlerts, stderr); err != nil {
+	if err := publish(ctx, cfg, rep, marker, stderr); err != nil {
 		return fail(stderr, err)
 	}
 	if exit == ExitAlerts {
@@ -83,34 +88,73 @@ func Run(ctx context.Context, cfg Config, in io.Reader, stdout, stderr io.Writer
 	return exit
 }
 
-func publish(ctx context.Context, cfg Config, marker, body string, activeAlerts int, stderr io.Writer) error {
+type publisher struct {
+	client *gitlab.Client
+	cfg    Config
+	stderr io.Writer
+}
+
+func publish(ctx context.Context, cfg Config, rep *report.Report, marker string, stderr io.Writer) error {
+	activeAlerts := len(rep.ActiveAlerts())
 	if activeAlerts == 0 && cfg.OnZeroAlerts == ZeroSkip {
 		fmt.Fprintln(stderr, logPrefix, "no active alerts, skipping (--on-zero-alerts=skip)")
 		return nil
 	}
 	client := gitlab.New(cfg.GitLabURL, cfg.Token, cfg.HTTPClient)
-	notes, err := client.ListMRNotes(ctx, cfg.ProjectID, cfg.MRIID)
+	self, err := client.CurrentUser(ctx)
 	if err != nil {
 		return err
 	}
-	existing := findMarkerNote(notes, marker)
+	discussions, err := client.ListMRDiscussions(ctx, cfg.ProjectID, cfg.MRIID)
+	if err != nil {
+		return err
+	}
+	existing := findOwnDiscussion(discussions, marker, self.ID)
 	if activeAlerts == 0 && cfg.OnZeroAlerts == ZeroAuto && existing == nil {
 		fmt.Fprintln(stderr, logPrefix, "no active alerts and no existing note, skipping (--on-zero-alerts=auto)")
 		return nil
 	}
-	if existing != nil {
-		if _, err := client.UpdateMRNote(ctx, cfg.ProjectID, cfg.MRIID, existing.ID, body); err != nil {
-			return err
-		}
-		fmt.Fprintf(stderr, "%s updated note %d on MR !%s\n", logPrefix, existing.ID, cfg.MRIID)
-		return nil
+	p := publisher{client: client, cfg: cfg, stderr: stderr}
+	if cfg.Thread {
+		return p.thread(ctx, rep, marker, existing)
 	}
-	note, err := client.CreateMRNote(ctx, cfg.ProjectID, cfg.MRIID, body)
+	return p.note(ctx, rep, marker, existing)
+}
+
+func (p publisher) note(ctx context.Context, rep *report.Report, marker string, existing *gitlab.Discussion) error {
+	body := render(rep, p.cfg, marker, nil)
+	if existing != nil {
+		return p.updateBody(ctx, existing, body)
+	}
+	note, err := p.client.CreateMRNote(ctx, p.cfg.ProjectID, p.cfg.MRIID, body)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stderr, "%s created note %d on MR !%s\n", logPrefix, note.ID, cfg.MRIID)
+	fmt.Fprintf(p.stderr, "%s created note %d on MR !%s\n", logPrefix, note.ID, p.cfg.MRIID)
 	return nil
+}
+
+func (p publisher) updateBody(ctx context.Context, d *gitlab.Discussion, body string) error {
+	note := d.Notes[0]
+	var err error
+	if d.IndividualNote {
+		_, err = p.client.UpdateMRNote(ctx, p.cfg.ProjectID, p.cfg.MRIID, note.ID, body)
+	} else {
+		_, err = p.client.UpdateMRDiscussionNote(ctx, p.cfg.ProjectID, p.cfg.MRIID, d.ID, note.ID, body)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(p.stderr, "%s updated note %d on MR !%s\n", logPrefix, note.ID, p.cfg.MRIID)
+	return nil
+}
+
+func render(rep *report.Report, cfg Config, marker string, state *threadState) string {
+	header := marker
+	if state != nil {
+		header += "\n" + state.marker()
+	}
+	return markdown.Render(rep, markdown.Options{Marker: header, BencherURL: cfg.BencherURL})
 }
 
 func fail(stderr io.Writer, err error) int {
@@ -163,10 +207,14 @@ func sanitizeMarkerID(s string) string {
 	return r.Replace(s)
 }
 
-func findMarkerNote(notes []gitlab.Note, marker string) *gitlab.Note {
-	for i := range notes {
-		if !notes[i].System && strings.Contains(notes[i].Body, marker) {
-			return &notes[i]
+func findOwnDiscussion(discussions []gitlab.Discussion, marker string, self int64) *gitlab.Discussion {
+	for i := range discussions {
+		if len(discussions[i].Notes) == 0 {
+			continue
+		}
+		first := discussions[i].Notes[0]
+		if !first.System && first.Author.ID == self && strings.Contains(first.Body, marker) {
+			return &discussions[i]
 		}
 	}
 	return nil
