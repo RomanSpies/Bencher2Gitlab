@@ -11,7 +11,13 @@ variables:
   GOMODCACHE: "$CI_PROJECT_DIR/.cache/go/pkg/mod"
   GOCACHE: "$CI_PROJECT_DIR/.cache/go/build"
   GOFLAGS: "-mod=readonly"
-  GOTOOLCHAIN: "local"
+  # Pinned instead of "local": a runner image update must not silently change
+  # the toolchain underneath the linters. The toolchain is fetched through the
+  # module proxy and cached with the module cache.
+  GOTOOLCHAIN: "go1.27.1"
+  GOLANGCI_LINT_VERSION: "v2.14.0"
+  GOSEC_VERSION: "v2.29.0"
+  STATICCHECK_VERSION: "v0.8.1"
   SONARQUBE: "$CI_PROJECT_DIR/sonarqube"
   MAJOR: "1"
   GITHUB_REPO: "RomanSpies/Bencher2Gitlab"
@@ -101,39 +107,71 @@ go-vet:
   script:
     - go vet ./...
 
+# The SAST jobs distinguish findings from the tool itself breaking. Findings
+# stay non-blocking (they reach Sonar or show as a warning); a linter that
+# cannot load the packages fails the job, because it would otherwise report
+# nothing and look green.
+
 staticcheck:
   stage: sast
   <<: *go-cache
   needs: [build]
-  allow_failure: true
+  # 42 = findings only, shown as a warning. Every other failure is real.
+  allow_failure:
+    exit_codes: 42
   script:
-    - which staticcheck || go install honnef.co/go/tools/cmd/staticcheck@latest
-    - staticcheck ./...
+    - go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+    - status=0; staticcheck ./... > staticcheck.txt || status=$?
+    - cat staticcheck.txt
+    - |
+      if [ "$status" -gt 1 ] || grep -q '(compile)$' staticcheck.txt; then
+        echo "staticcheck failed or could not load the packages"
+        exit 1
+      fi
+    - if [ "$status" -eq 1 ]; then exit 42; fi
 
 gosec:
   stage: sast
   <<: *go-cache
   needs: [build]
-  allow_failure: true
   script:
     - mkdir -p "$SONARQUBE"
-    - which gosec || go install github.com/securego/gosec/v2/cmd/gosec@latest
-    - gosec -exclude-dir .cache -fmt sarif -out "$SONARQUBE/gosec.sarif" -severity medium ./... || true
+    - go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+    # The SARIF report drops package loading errors entirely, so the JSON
+    # report goes to stdout alongside it to check the "Golang errors" section.
+    - gosec -no-fail -exclude-dir .cache -severity medium
+        -fmt sarif -out "$SONARQUBE/gosec.sarif"
+        -stdout -verbose json ./... > gosec.json
+    - |
+      if ! grep -Eq '"Golang errors": *(\{ *\}|null)' gosec.json; then
+        echo "gosec could not load the packages; its SARIF report would be silently empty:"
+        cat gosec.json
+        exit 1
+      fi
   artifacts:
     when: always
     paths:
       - sonarqube/gosec.sarif
+      - gosec.json
     expire_in: 7 days
 
 golangci-lint:
   stage: sast
   <<: *go-cache
   needs: [build]
-  allow_failure: true
   script:
     - mkdir -p "$SONARQUBE"
-    - which golangci-lint || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    - golangci-lint run --out-format checkstyle ./... > "$SONARQUBE/golangci-checkstyle.xml" 2>&1 || true
+    - go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+    - golangci-lint run --issues-exit-code=0
+        --output.text.path=stdout
+        --output.checkstyle.path="$SONARQUBE/golangci-checkstyle.xml" ./...
+    # A typecheck entry means the packages never loaded and no linter ran;
+    # Sonar would only show it as one odd finding on an untouched line.
+    - |
+      if grep -q 'source="typecheck"' "$SONARQUBE/golangci-checkstyle.xml"; then
+        echo "golangci-lint could not type-check the packages (linter/toolchain mismatch?)"
+        exit 1
+      fi
   artifacts:
     when: always
     paths:
